@@ -1,35 +1,19 @@
-# Base stage with pnpm setup
-FROM node:23.11.1-slim AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-WORKDIR /app
+FROM node:14
 
-# Production dependencies stage
-FROM base AS prod-deps
-COPY package.json pnpm-lock.yaml ./
-# Install only production dependencies
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile --ignore-scripts
+ADD package.json /tmp/package.json
 
-# Build stage - install all dependencies and build
-FROM base AS build
-COPY package.json pnpm-lock.yaml ./
-# Install all dependencies (including dev dependencies)
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts
-COPY . .
-RUN pnpm run build
+ADD yarn.lock /tmp/yarn.lock
 
-# Final stage - combine production dependencies and build output
-FROM node:23.11.1-alpine AS runner
-WORKDIR /app
-COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/dist ./dist
+RUN rm -rf build
 
-# Use the node user from the image
-USER node
+RUN cd /tmp && yarn install
 
-# Expose port 8080
-EXPOSE 8080
+ADD ./ /src
 
-# Start the server
-CMD ["node", "dist/index.js"]
+RUN rm -rf src/node_modules && cp -a /tmp/node_modules /src/
+
+WORKDIR /src
+
+RUN yarn build
+
+CMD ["node", "build/src/app.js"]
