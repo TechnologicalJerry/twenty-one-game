@@ -1,40 +1,47 @@
-import cors from "cors";
-import express, { type Express } from "express";
-import helmet from "helmet";
-import { pino } from "pino";
+import express, { Request, Response } from "express";
+import dotenv from "dotenv";
+import config from "config";
+import responseTime from "response-time";
+import connect from "./utils/connect";
+import logger from "./utils/logger";
+import routes from "./routes";
+import deserializeUser from "./middleware/deserializeUser";
+import { restResponseTimeHistogram, startMetricsServer } from "./utils/metrics";
+import swaggerDocs from "./utils/swagger";
 
-import { openAPIRouter } from "@/api-docs/openAPIRouter";
-import { healthCheckRouter } from "@/api/healthCheck/healthCheckRouter";
-import { userRouter } from "@/api/user/userRouter";
-import errorHandler from "@/common/middleware/errorHandler";
-import rateLimiter from "@/common/middleware/rateLimiter";
-import requestLogger from "@/common/middleware/requestLogger";
-import { env } from "@/common/utils/envConfig";
+dotenv.config();
 
-const logger = pino({ name: "server start" });
-const app: Express = express();
+const port = config.get<number>("port");
 
-// Set the application to trust the reverse proxy
-app.set("trust proxy", true);
+const server = express();
 
-// Middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
-app.use(helmet());
-app.use(rateLimiter);
+server.use(express.json());
 
-// Request logging
-app.use(requestLogger);
+server.use(deserializeUser);
 
-// Routes
-app.use("/health-check", healthCheckRouter);
-app.use("/users", userRouter);
+server.use(
+  responseTime((req: Request, res: Response, time: number) => {
+    if (req?.route?.path) {
+      restResponseTimeHistogram.observe(
+        {
+          method: req.method,
+          route: req.route.path,
+          status_code: res.statusCode,
+        },
+        time * 1000
+      );
+    }
+  })
+);
 
-// Swagger UI
-app.use(openAPIRouter);
+server.listen(port, async () => {
+  logger.info(`Application Server is running at http://localhost:${port}`);
 
-// Error handlers
-app.use(errorHandler());
+  await connect();
 
-export { app, logger };
+  routes(server);
+
+  startMetricsServer();
+
+  swaggerDocs(server, port);
+});
