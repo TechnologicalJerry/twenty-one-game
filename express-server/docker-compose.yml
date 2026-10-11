@@ -5,8 +5,21 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - REDIS_URI=redis://redis:6379
     build:
         context: ./ 
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 
   caddy:
     image: caddy/caddy:2.2.1-alpine
@@ -24,3 +37,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  redis_data:
