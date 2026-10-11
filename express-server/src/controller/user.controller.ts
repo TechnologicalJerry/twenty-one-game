@@ -9,10 +9,13 @@ export async function createUserHandler(
   res: Response
 ) {
   try {
-    const user = await createUser(req.body);
-    return res.send(user);
+    const user = await createUser(omit(req.body, "passwordConfirmation"));
+    return res.status(201).send(user);
   } catch (e: any) {
     logger.error(e);
-    return res.status(409).send(e.message);
+    if (e.code === 11000) {
+      return res.status(409).send("Account with this email already exists");
+    }
+    return res.status(400).send(e.message || "Failed to create user");
   }
 }
