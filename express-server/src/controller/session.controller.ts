@@ -7,6 +7,10 @@ import {
 } from "../service/session.service";
 import { validatePassword } from "../service/user.service";
 import { signJwt } from "../utils/jwt.utils";
+import {
+  accessTokenCookieOptions,
+  refreshTokenCookieOptions,
+} from "../utils/cookie.utils";
 
 export async function createUserSessionHandler(req: Request, res: Response) {
   // Validate the user's password
@@ -20,22 +24,24 @@ export async function createUserSessionHandler(req: Request, res: Response) {
   const session = await createSession(user._id, req.get("user-agent") || "");
 
   // create an access token
-
   const accessToken = signJwt(
     { ...user, session: session._id },
     "accessTokenPrivateKey",
-    { expiresIn: config.get("accessTokenTtl") } // 15 minutes,
+    { expiresIn: config.get("accessTokenTtl") } // 15 minutes
   );
 
   // create a refresh token
   const refreshToken = signJwt(
     { ...user, session: session._id },
     "refreshTokenPrivateKey",
-    { expiresIn: config.get("refreshTokenTtl") } // 15 minutes
+    { expiresIn: config.get("refreshTokenTtl") } // 1 year
   );
 
-  // return access & refresh tokens
+  // Set secure httpOnly cookies
+  res.cookie("accessToken", accessToken, accessTokenCookieOptions);
+  res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
 
+  // return access & refresh tokens in body for client/API backward compatibility
   return res.send({ accessToken, refreshToken });
 }
 
@@ -51,6 +57,10 @@ export async function deleteSessionHandler(req: Request, res: Response) {
   const sessionId = res.locals.user.session;
 
   await updateSession({ _id: sessionId }, { valid: false });
+
+  // Clear authentication cookies
+  res.clearCookie("accessToken", { path: "/" });
+  res.clearCookie("refreshToken", { path: "/" });
 
   return res.send({
     accessToken: null,
