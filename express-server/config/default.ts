@@ -8,4 +8,5 @@ export default {
   accessTokenPublicKey: ``,
   refreshTokenPrivateKey: ``,
   refreshTokenPublicKey: ``,
+  redisUri: "redis://localhost:6379",
 };
