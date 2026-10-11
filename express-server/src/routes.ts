@@ -13,6 +13,7 @@ import {
 import { createUserHandler } from "./controller/user.controller";
 import requireUser from "./middleware/requireUser";
 import validateResource from "./middleware/validateResource";
+import { authLimiter } from "./middleware/rateLimiter";
 import {
   createProductSchema,
   deleteProductSchema,
@@ -61,7 +62,11 @@ function routes(app: Express) {
    *      400:
    *        description: Bad request
    */
-  app.post("/api/users", validateResource(createUserSchema), createUserHandler);
+  app.post(
+    "/api/users",
+    [authLimiter, validateResource(createUserSchema)],
+    createUserHandler
+  );
 
   /**
    * @openapi
@@ -110,7 +115,7 @@ function routes(app: Express) {
    */
   app.post(
     "/api/sessions",
-    validateResource(createSessionSchema),
+    [authLimiter, validateResource(createSessionSchema)],
     createUserSessionHandler
   );
 
